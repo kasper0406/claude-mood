@@ -1,11 +1,66 @@
 {
-  "description": "Inject webcam/mic mood readings from moodd into Claude's context",
+  "description": "Webcam/mic mood readings from moodd -> context for the focused Claude session",
   "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" prompt", "timeout": 5 } ] }
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" session_start",
+            "timeout": 5
+          }
+        ]
+      }
     ],
-    "PostToolUse": [
-      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" tool", "timeout": 5 } ] }
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" prompt",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" batch",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" stop",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" watch",
+            "timeout": 960,
+            "asyncRewake": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" session_end",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
