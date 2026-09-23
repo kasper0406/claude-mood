@@ -1,0 +1,11 @@
+{
+  "description": "Inject webcam/mic mood readings from moodd into Claude's context",
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" prompt", "timeout": 5 } ] }
+    ],
+    "PostToolUse": [
+      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/mood_hook.py\" tool", "timeout": 5 } ] }
+    ]
+  }
+}

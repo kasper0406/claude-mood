@@ -1,0 +1,6 @@
+{
+  "name": "claude-mood",
+  "version": "0.1.0",
+  "description": "Lets Claude notice when you laugh, groan, swear or scowl (local webcam + mic via moodd.py) and adjust.",
+  "author": { "name": "knielsen" }
+}

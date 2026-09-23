@@ -1,0 +1,7 @@
+{
+  "name": "claude-mood",
+  "owner": { "name": "knielsen" },
+  "plugins": [
+    { "name": "claude-mood", "source": "./", "description": "Webcam/mic mood sensing for Claude Code" }
+  ]
+}
