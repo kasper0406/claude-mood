@@ -30,12 +30,6 @@ uv run https://raw.githubusercontent.com/kasper0406/claude-mood/main/moodd.py
 
 For the first 2 minutes, look at the screen with a neutral face while it learns what your resting face looks like. Ctrl-C stops the sensor, and `/plugin uninstall claude-mood@claude-mood` removes the plugin.
 
-Optionally, show your mood in the status line (`😤 ⛈ joy 0.05 · frust 0.71 · swear jar 4`, or 📱) by adding this to `~/.claude/settings.json`:
-
-```json
-"statusLine": { "type": "command", "command": "python3 /path/to/claude-mood/hooks/mood_hook.py status" }
-```
-
 ## Run from a clone
 
 ```sh
