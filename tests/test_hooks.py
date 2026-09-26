@@ -191,6 +191,28 @@ def test_idle_roast_wake_and_no_rearm():
     check("Stop after the wake turn does not re-arm or notify", rc == 0 and out.strip() == "", f"{rc} {out}")
 
 
+def test_reaction_wake():
+    e, now = Env(), time.time()
+    e.session(A, state="working", gen=5)
+    e.focus((now - 1000, A))
+    e.state(samples(60, now) + samples(40, now + 40, ff=0.6)[1:])  # calm, then scowls at the answer
+    e.hook("stop", A)
+    rc, _, err = e.hook("watch", A)
+    rec = e.read(A)
+    check("scowling at the answer wakes Claude to re-check it", rc == 2 and "re-read your last answer"
+          in err.lower() and rec.get("frust_turns") == 1, f"{rc} {err[:200]} {rec}")
+    _, out, _ = e.hook("stop", A)
+    rc, _, _ = e.hook("watch", A)
+    check("no reaction wake after the woken turn (no loop)", rc == 0 and out.strip() == "", f"{rc} {out}")
+    e2 = Env()
+    e2.session(A, state="working", gen=5)
+    e2.focus((now - 1000, A))
+    e2.state(samples(60, now) + samples(40, now + 40, ff=0.6)[1:])
+    e2.env["CLAUDE_MOOD_REACT"] = "0"
+    rc = watcher_outcome(e2, lambda: time.sleep(12), wait_before=0, timeout=1)
+    check("CLAUDE_MOOD_REACT=0 disables the reaction wake", rc == "timeout", str(rc))
+
+
 def test_watch_cancelled_by_prompt():
     e, now = Env(), time.time()
     e.session(A, state="working")

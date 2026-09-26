@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import moodlib as ml  # noqa: E402
 
 MODE = os.environ.get("CLAUDE_MOOD_MODE", "playful")   # playful | polite (no roasts)
+REACT = os.environ.get("CLAUDE_MOOD_REACT", "1") != "0"  # wake Claude when you scowl at its answer
+REACT_S = 60               # ...within this long after the turn ends
 JOKE_COOLDOWN_S = 600
 JOKES_OFF_S = 1800
 NUDGE_COOLDOWN_S = 120
@@ -237,7 +239,17 @@ def watch(p):
         smp = owned_now(st, sid, now)
         reason = None
         phone = ml.trailing(smp, ml.on_phone, now)
-        if ml.trailing(smp, ml.away, now) >= AWAY_S:
+        react = (REACT and now - start <= REACT_S and now - s.get("last_react_t", 0) >= NUDGE_COOLDOWN_S
+                 and ml.summarize(st["samples"], start, now, sid, ml.focus_timeline(start)))
+        if react and react["frust"] >= ml.ENTER:
+            rescue = s.get("frust_turns", 0) + 1 >= 2
+            reason = ("react", f"[claude-mood] The user read your answer and reacted with visible frustration "
+                      f"within {int(now - start)}s ({ml.describe(react, 'frust')}), without typing anything. "
+                      "Re-read your last answer against exactly what they asked. If something is wrong, say so "
+                      "and correct it in a few lines; if you're confident it's right, don't repeat it, ask one "
+                      "short question about what they expected. Don't start new work."
+                      + (RESCUE if rescue else ""))
+        elif ml.trailing(smp, ml.away, now) >= AWAY_S:
             was_away = True
         elif was_away and ml.trailing(smp, lambda x: x.get("present", 0) > 0, now) >= 5:
             reason = ("welcome", "[claude-mood] The user just came back to the desk after a while away. "
@@ -257,6 +269,11 @@ def watch(p):
                 s["state"] = "working"
                 if reason[0] == "roast":
                     s["last_joke_t"] = now
+                if reason[0] == "react":  # counts as a frustrated turn; the next prompt window starts here
+                    s.update(last_react_t=now, last_prompt_t=now, frustrated=True,
+                             frust_turns=s.get("frust_turns", 0) + 1)
+                    if s["frust_turns"] >= 2:
+                        s["rescue"] = True
             ml.log(f"wake {sid[:8]}: {reason[0]}")
             print(reason[1], file=sys.stderr)
             return 2
