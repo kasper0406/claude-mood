@@ -180,13 +180,13 @@ def tmux_focused_panes(sock):
 def mac_focused_tty():
     """tty of the focused tab in the frontmost terminal app, '' if a non-terminal is frontmost."""
     script = '''
-    tell application "System Events" to set front to name of first process whose frontmost is true
-    if front is "iTerm2" then
+    tell application "System Events" to set frontApp to name of first process whose frontmost is true
+    if frontApp is "iTerm2" then
         tell application "iTerm2" to return tty of current session of current window
-    else if front is "Terminal" then
+    else if frontApp is "Terminal" then
         tell application "Terminal" to return tty of selected tab of front window
     else
-        return "app:" & front
+        return "app:" & frontApp
     end if'''
     try:
         r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3)

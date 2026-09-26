@@ -5,7 +5,7 @@
 #   "numpy",
 #   "opencv-python>=4.8",
 #   "onnxruntime>=1.16",
-#   "mediapipe>=0.10.14",
+#   "mediapipe>=0.10.14,<0.11",  # 1.0.x aborts in FaceLandmarker on macOS (Metal service check)
 #   "sounddevice>=0.4",
 #   "soundfile>=0.12",
 #   "scipy",
@@ -264,7 +264,7 @@ def analyze_face(frame, lm, predict, t_ms):
     }
 
 
-def video_loop(mood, src, fps, show, stop):
+def video_loop(mood, src, fps, preview, stop):
     import cv2
     predict, lm = emotion_model(), landmarker()
     live = src.isdigit()
@@ -303,15 +303,14 @@ def video_loop(mood, src, fps, show, stop):
                     yawn_since = None
             else:
                 yawn_since = None
-        if show:
+        if preview is not None:
             if f:
                 x0, y0, x1, y1 = f["box"]
                 cv2.rectangle(frame, (x0, y0), (x1, y1), (0, 255, 0), 2)
                 cv2.putText(frame, f"{f['top']} joy={f['joy']:.2f} frust={f['frust']:.2f} "
                             f"pitch={f['pitch']:.0f} down={f['look_down']:.2f}", (x0, max(15, y0 - 8)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            cv2.imshow("moodd", frame)
-            cv2.waitKey(1)
+            preview["frame"] = frame  # shown by main(): macOS only allows GUI calls on the main thread
         time.sleep(max(0.0, 1 / fps - (time.time() - t0)))
 
 
@@ -482,12 +481,13 @@ def main():
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     mood, stop = Mood(), threading.Event()
+    preview = {} if args.show and not args.no_video else None
     threads = []
     if args.port:
         threads.append(threading.Thread(target=serve, args=(mood, args.port), daemon=True))
     if not args.no_video:
         threads.append(threading.Thread(target=video_loop, daemon=True,
-                                        args=(mood, args.video, args.fps, args.show, stop)))
+                                        args=(mood, args.video, args.fps, preview, stop)))
     if not args.no_audio:
         models = AudioModels(words=not args.no_words)
         ring = Ring(10)
@@ -499,7 +499,20 @@ def main():
         + "; Ctrl-C to stop")
     try:
         while True:
-            time.sleep(1)
+            if preview is None:
+                time.sleep(1)
+            else:
+                import cv2
+                deadline = time.time() + 1
+                while time.time() < deadline:
+                    frame = preview.pop("frame", None)
+                    if frame is not None:
+                        cv2.imshow("moodd", frame)
+                        preview["shown"] = True
+                    if preview.get("shown"):
+                        cv2.waitKey(30)
+                    else:  # waitKey returns at once without a window on some backends (Qt)
+                        time.sleep(0.03)
             s = mood.flush()
             mood.write()
             if args.verbose:
