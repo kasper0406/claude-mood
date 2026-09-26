@@ -160,7 +160,8 @@ class Mood:
                      look_down=round(mean("look_down"), 2), eyes_closed=round(mean("eyes_closed"), 2),
                      top=max(set(f["top"] for f in seen), key=[f["top"] for f in seen].count))
             if base is not None:  # uncalibrated, "frustration" is mostly the user's resting face
-                s["ff"] = round(max(0.0, ff - base), 3)
+                # share of the headroom above the user's neutral: a resting face at 0.6 can still reach 1.0
+                s["ff"] = round(max(0.0, ff - base) / max(0.05, 1.0 - base), 3)
         self.samples.append(s)
         return s
 

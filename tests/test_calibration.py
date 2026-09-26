@@ -37,6 +37,11 @@ s = run(m, 150, pitch=-35.0, look_down=0.7)
 check("150s head-down phone posture is not learned away", s["pitch"] < -25, s)
 s = run(m, 150, frust=0.65)
 check("150s silent scowl is not learned away", s["ff"] > 0.4, s)
+m3 = moodd.Mood()
+m3.base = {"ff": None, "pitch": None}
+run(m3, 130, frust=0.62)  # a resting face the model reads as fairly annoyed
+s = run(m3, 3, frust=0.85)  # a real scowl on top of it
+check("high resting face: a scowl still reaches the reaction threshold", s["ff"] >= 0.45, s)
 m2 = moodd.Mood()  # restart: calibration persisted
 check("calibration persists across restarts", m2.base["pitch"] is not None, m2.base)
 sys.exit(0 if ok else 1)
