@@ -5,7 +5,7 @@
 #   "numpy",
 #   "opencv-python>=4.8",
 #   "onnxruntime>=1.16",
-#   "mediapipe>=0.10.14,<0.11",  # 1.0.x aborts in FaceLandmarker on macOS (Metal service check)
+#   "mediapipe>=0.10.14,<=0.10.21",  # later PyPI builds phone home (clearcut); 1.0.x aborts on macOS
 #   "sounddevice>=0.4",
 #   "soundfile>=0.12",
 #   "scipy",
