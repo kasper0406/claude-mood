@@ -2,7 +2,9 @@
 
 > **Just for fun.** This is a prototype made for the lolz, with no intention behind it beyond that. No roadmap, no support, macOS only.
 
-[![Claude answers a riddle wrong, I facepalm, and Claude corrects itself without me typing a word](docs/demo.gif)](docs/demo.mp4)
+<p align="center">
+  <a href="docs/demo.mp4"><img src="docs/demo.gif" alt="Claude answers a riddle wrong, I facepalm, and Claude corrects itself without me typing a word"></a>
+</p>
 
 Claude Code watches your face through the webcam, listens through the mic, and reacts:
 
