@@ -14,7 +14,7 @@ ok = True
 
 def run(mood, n, **face):
     f = {"joy": 0.05, "frust": 0.2, "top": "Neutral", "pitch": -5.0, "yaw": 0.0, "look_down": 0.1,
-         "eyes_closed": 0.1, "jaw_open": 0.0, **face}
+         "eyes_closed": 0.1, "jaw_open": 0.0, "brow": 0.05, **face}
     for _ in range(n):
         for _ in range(3):
             mood.add_face(f)
@@ -35,12 +35,14 @@ s = run(m, 130)  # calibrate: neutral, looking at the screen, camera slightly ab
 check("calibrated to the user's neutral", abs(s["pitch"]) < 1 and s["ff"] < 0.02, s)
 s = run(m, 150, pitch=-35.0, look_down=0.7)
 check("150s head-down phone posture is not learned away", s["pitch"] < -25, s)
-s = run(m, 150, frust=0.65)
+s = run(m, 150, frust=0.65, brow=0.4)
 check("150s silent scowl is not learned away", s["ff"] > 0.4, s)
+s = run(m, 5, frust=0.95)  # the model says "Anger" but the brows are relaxed
+check("\"Anger\" on a neutral face (brows not lowered) is not frustration", s["ff"] < 0.05, s)
 m3 = moodd.Mood()
-m3.base = {"ff": None, "pitch": None}
+m3.base = {"ff": None, "pitch": None, "brow": None}
 run(m3, 130, frust=0.62)  # a resting face the model reads as fairly annoyed
-s = run(m3, 3, frust=0.85)  # a real scowl on top of it
+s = run(m3, 3, frust=0.85, brow=0.4)  # a real scowl on top of it
 check("high resting face: a scowl still reaches the reaction threshold", s["ff"] >= 0.45, s)
 m2 = moodd.Mood()  # restart: calibration persisted
 check("calibration persists across restarts", m2.base["pitch"] is not None, m2.base)

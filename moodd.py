@@ -49,7 +49,8 @@ SR = 16000
 HISTORY_S = 900
 CALIB_S = 120             # seconds of face data used to calibrate the resting face / head pose
 DRIFT_S = 1800            # afterwards the baseline drifts with this time constant...
-DRIFT_STEP = 0.05, 2.0    # ...by at most this much per second-sample (frustration, pitch degrees)
+DRIFT_STEP = 0.05, 2.0    # ...by at most this much per second-sample (frustration/brow, pitch degrees)
+BROW_FULL = 0.15          # brows this far below neutral (browDown blendshape) = a full scowl
 
 FACE_MODEL_URL = ("https://github.com/HSE-asavchenko/face-emotion-recognition/raw/main/"
                   "models/affectnet_emotions/onnx/enet_b0_8_best_vgaf.onnx")
@@ -103,8 +104,8 @@ class Mood:
         self.last_event = {}     # label -> t, for dedup of overlapping windows
         self.last_frust_event = 0.0
         self.samples = deque(maxlen=HISTORY_S)
-        self.calib = {"ff": [], "pitch": []}
-        self.base = {"ff": None, "pitch": None}
+        self.calib = {"ff": [], "pitch": [], "brow": []}
+        self.base = {"ff": None, "pitch": None, "brow": None}
         try:
             self.base.update(json.loads((STATE_DIR / "calibration.json").read_text()))
         except (OSError, ValueError):
@@ -152,16 +153,21 @@ class Mood:
             # looking at the screen, then drifting slowly with bounded steps so a sustained scowl or a
             # long phone session can't be learned away.
             screen = mean("look_down") < 0.35
+            brow = mean("brow")
             base = self.update_base("ff", ff, calm, 40)
+            bbase = self.update_base("brow", brow, calm and screen, 50)
             pbase = self.update_base("pitch", pitch, screen, 50)
             pbase = 0.0 if pbase is None else pbase
-            s.update(fj=round(mean("joy"), 3), ff_raw=round(ff, 3),
+            s.update(fj=round(mean("joy"), 3), ff_raw=round(ff, 3), brow=round(brow, 3),
                      pitch=round(pitch - pbase, 1), yaw=round(mean("yaw"), 1),
                      look_down=round(mean("look_down"), 2), eyes_closed=round(mean("eyes_closed"), 2),
                      top=max(set(f["top"] for f in seen), key=[f["top"] for f in seen].count))
-            if base is not None:  # uncalibrated, "frustration" is mostly the user's resting face
+            if base is not None and bbase is not None:  # uncalibrated, it's mostly the resting face
                 # share of the headroom above the user's neutral: a resting face at 0.6 can still reach 1.0
-                s["ff"] = round(max(0.0, ff - base) / max(0.05, 1.0 - base), 3)
+                ff = max(0.0, ff - base) / max(0.05, 1.0 - base)
+                # The emotion model can call a neutral face "Anger" for minutes; a real scowl also
+                # lowers the brows, so frustration only counts as far as the brows actually drop.
+                s["ff"] = round(ff * min(1.0, max(0.0, brow - bbase) / BROW_FULL), 3)
         self.samples.append(s)
         return s
 
@@ -255,6 +261,7 @@ def analyze_face(frame, lm, predict, t_ms):
     return {
         "joy": max(p["Happiness"], smile),
         "frust": p["Anger"] + p["Disgust"] + p["Contempt"] + 0.5 * p["Sadness"],
+        "brow": (bs["browDownLeft"] + bs["browDownRight"]) / 2,
         "top": max(p, key=p.get),
         "pitch": float(np.degrees(np.arctan2(-R[2, 1], R[2, 2]))),  # negative = looking down
         "yaw": float(np.degrees(np.arcsin(np.clip(R[2, 0], -1, 1)))),

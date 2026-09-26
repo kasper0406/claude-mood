@@ -31,7 +31,7 @@ K_AUDIO = 0.5                     # episodes/minute -> saturation; one outburst 
 FACE_FRUST_THR, FACE_JOY_THR = 0.3, 0.5
 MIN_FACE_S = 8                    # below this, face evidence is "unknown"
 ENTER, EXIT = 0.45, 0.25          # frustration hysteresis
-PHONE_PITCH, PHONE_LOOK = -18.0, 0.45
+PHONE_PITCH, PHONE_LOOK = -12.0, 0.2  # head tilt vs neutral; the screen sits around 0..-7
 
 
 def log(msg):
