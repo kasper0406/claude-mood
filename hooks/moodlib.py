@@ -177,23 +177,31 @@ def tmux_focused_panes(sock):
     return panes
 
 
+MAC_FOCUS_SCRIPT = '''
+tell application "System Events" to set frontApp to name of first process whose frontmost is true
+if frontApp is "iTerm2" then
+    tell application "iTerm2" to return tty of current session of current window
+else if frontApp is "Terminal" then
+    tell application "Terminal" to return tty of selected tab of front window
+else
+    return "app:" & frontApp
+end if'''
+_osa_errors = set()
+
+
 def mac_focused_tty():
     """tty of the focused tab in the frontmost terminal app, '' if a non-terminal is frontmost."""
-    script = '''
-    tell application "System Events" to set frontApp to name of first process whose frontmost is true
-    if frontApp is "iTerm2" then
-        tell application "iTerm2" to return tty of current session of current window
-    else if frontApp is "Terminal" then
-        tell application "Terminal" to return tty of selected tab of front window
-    else
-        return "app:" & frontApp
-    end if'''
     try:
-        r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3)
+        r = subprocess.run(["osascript", "-e", MAC_FOCUS_SCRIPT], capture_output=True, text=True,
+                           timeout=3)
     except (OSError, subprocess.SubprocessError):
         return None
     out = r.stdout.strip()
     if r.returncode != 0:
+        err = r.stderr.strip()
+        if err not in _osa_errors:  # focusd polls every second: log each distinct error once
+            _osa_errors.add(err)
+            log(f"focus: osascript failed: {err}")
         return None
     return "" if out.startswith("app:") else out.replace("/dev/", "")
 
@@ -265,16 +273,42 @@ def resolve_focus(sessions):
     return None
 
 
+HOOKS_DIR = Path(__file__).resolve().parent
+FOCUSD_CODE = STATE_DIR / "focusd.code"  # hooks dir of the newest spawner (plugin updates move it)
+
+
+def code_sig(d):
+    try:
+        return tuple((d / f).stat().st_mtime_ns for f in ("mood_hook.py", "moodlib.py"))
+    except OSError:
+        return None
+
+
 def focusd():
-    """Per-machine singleton: logs focus transitions to focus.jsonl once a second."""
+    """Per-machine singleton: logs focus transitions to focus.jsonl once a second.
+
+    Re-execs itself when its code changes or a newer plugin install asks for it, so a
+    long-lived focusd never keeps running stale code.
+    """
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     lockf = open(STATE_DIR / "focusd.lock", "w")
     try:
         fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         return  # already running
+    sig = code_sig(HOOKS_DIR)
     last, last_write, idle_since = object(), 0.0, None
     while True:
+        try:
+            want = Path(FOCUSD_CODE.read_text().strip()).resolve()  # match HOOKS_DIR, avoid exec loops
+        except OSError:
+            want = HOOKS_DIR
+        if want != HOOKS_DIR and code_sig(want) is None:
+            want = HOOKS_DIR  # e.g. an old plugin version that has since been removed
+        if want != HOOKS_DIR or code_sig(HOOKS_DIR) != sig:
+            log(f"focusd: code changed, restarting from {want}")
+            lockf.close()  # releases the flock; the new image takes it again
+            os.execv(sys.executable, [sys.executable, str(want / "mood_hook.py"), "focusd"])
         sessions = live_sessions()
         if not sessions:
             idle_since = idle_since or time.time()
@@ -295,7 +329,9 @@ def focusd():
 
 
 def spawn_focusd():
-    subprocess.Popen([sys.executable, str(Path(__file__).parent / "mood_hook.py"), "focusd"],
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    FOCUSD_CODE.write_text(str(HOOKS_DIR))  # a running focusd switches to this code
+    subprocess.Popen([sys.executable, str(HOOKS_DIR / "mood_hook.py"), "focusd"],
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
 

@@ -361,6 +361,64 @@ print("focus", ml.resolve_focus([{"sid": "a", "pid": 1}, {"sid": "b", "pid": 2}]
     check("ambiguous X11 focus falls back to the pin", "focus b" in out.stdout, out.stdout + out.stderr)
 
 
+def wait_for(cond, timeout=8.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        if cond():
+            return True
+        time.sleep(0.2)
+    return cond()
+
+
+def test_focusd_follows_code():
+    import fcntl
+    import shutil
+    e = Env()
+    v1, v2 = (e.dir / "v1").resolve(), (e.dir / "v2").resolve()
+    for d in (v1, v2):
+        shutil.copytree(HOOK.parent, d, ignore=shutil.ignore_patterns("__pycache__"))
+    p = subprocess.Popen([sys.executable, str(v1 / "mood_hook.py"), "focusd"], env=e.env,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    args = lambda: subprocess.run(["ps", "-o", "args=", "-p", str(p.pid)], capture_output=True,
+                                  text=True).stdout
+    log = lambda: (e.dir / "hooks.log").read_text() if (e.dir / "hooks.log").exists() else ""
+    try:
+        wait_for(lambda: (e.dir / "focus.jsonl").exists())
+        st = (v1 / "moodlib.py").stat()
+        os.utime(v1 / "moodlib.py", ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+        ok = wait_for(lambda: f"restarting from {v1}" in log()) and p.poll() is None
+        check("focusd re-execs itself when its code changes", ok and str(v1) in args(), log() + args())
+        (e.dir / "focusd.code").write_text(str(v2))
+        check("focusd switches to a newer plugin dir", wait_for(lambda: str(v2) in args()), log() + args())
+        time.sleep(1)
+        with open(e.dir / "focusd.lock", "w") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held = False
+            except OSError:
+                held = True
+        check("restarted focusd still holds the singleton lock", held and p.poll() is None, log())
+    finally:
+        p.kill()
+        p.wait()
+
+
+def test_mac_focus_script_runs():
+    """The focus AppleScript must *run*: `front` as a variable compiled fine but failed at runtime."""
+    if sys.platform != "darwin":
+        return
+    sys.path.insert(0, str(HOOK.parent))
+    import moodlib
+    r = subprocess.run(["osascript", "-e", moodlib.MAC_FOCUS_SCRIPT], capture_output=True, text=True,
+                       timeout=10)
+    if r.returncode != 0 and any(c in r.stderr for c in ("(-1743)", "(-1713)", "(-600)")):
+        print("SKIP focus AppleScript: no Automation permission or GUI session")
+        return
+    out = r.stdout.strip()
+    check("macOS focus AppleScript runs and returns an app or a tty",
+          r.returncode == 0 and (out.startswith("app:") or out.startswith("/dev/tty")), r.stderr + out)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
