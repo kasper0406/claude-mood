@@ -24,6 +24,7 @@ MODE = os.environ.get("CLAUDE_MOOD_MODE", "playful")   # playful | polite (no ro
 JOKE_COOLDOWN_S = 600
 JOKES_OFF_S = 1800
 NUDGE_COOLDOWN_S = 120
+STREAK_BREAK_S = 1800      # frustrated-turn streaks don't survive a break this long
 PHONE_WORKING_S, PHONE_IDLE_S = 45, 90
 AWAY_S = 300
 WATCH_S = 900
@@ -100,6 +101,10 @@ def prompt(p):
         since = s.get("last_prompt_t") or now - 120
         s["last_prompt_t"] = now
         _, w = window_summary(sid, max(since, now - 600), now)
+        if not w or w["seconds"] < 5 or now - since > STREAK_BREAK_S:
+            # "in a row" needs consecutive turns with evidence; a blind turn or a long break ends it
+            s.update(frustrated=False, frust_turns=0)
+            s.pop("rescue", None)
         if not w or w["seconds"] < 5:
             return
         notes = []

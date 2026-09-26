@@ -70,7 +70,7 @@ Hooks can't change Claude Code's model or effort level. I checked this against t
 - `CLAUDE_MOOD_MODE=polite` turns off roasts and jokes.
 - Jokes have a shared 10-minute cooldown. If you groan within a minute of a joke (the comedy circuit breaker), jokes are off for 30 minutes.
 - Frustration is scored by episode: a groan, angry tone and "come on" from one outburst count once. A single outburst per minute isn't enough; it takes repeated outbursts or a sustained scowl. Enter and exit thresholds differ (0.45 / 0.25), so it doesn't flicker.
-- Face frustration and head pitch are measured against *your* neutral. It's calibrated from your first 2 minutes of calm, looking-at-the-screen seconds, then drifts slowly in bounded steps, so a long scowl or phone session isn't learned away. It's saved in `~/.cache/claude-mood/calibration.json`; delete that file to recalibrate.
+- Face frustration and head pitch are measured against *your* neutral. It's calibrated from your first 2 minutes of calm, looking-at-the-screen seconds, then drifts slowly in bounded steps, so a long scowl or phone session isn't learned away. Until then the face doesn't count towards frustration (many resting faces read as annoyed); only audio does. It's saved in `~/.cache/claude-mood/calibration.json`; delete that file to recalibrate.
 - Knobs are at the top of `hooks/moodlib.py`, `hooks/mood_hook.py` and `moodd.py`. Hook activity is logged to `~/.cache/claude-mood/hooks.log`.
 - macOS: grant camera and microphone permission to the terminal app that runs `moodd.py`.
 

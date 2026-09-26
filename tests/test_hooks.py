@@ -361,6 +361,46 @@ print("focus", ml.resolve_focus([{"sid": "a", "pid": 1}, {"sid": "b", "pid": 2}]
     check("ambiguous X11 focus falls back to the pin", "focus b" in out.stdout, out.stdout + out.stderr)
 
 
+def test_uncalibrated_face_is_ignored():
+    e, now = Env(), time.time()
+    e.session(A, last_prompt_t=now - 60)
+    e.focus((now - 1000, A))
+    raw = samples(60, now)
+    for s in raw:
+        s.pop("ff")  # before calibration moodd only reports ff_raw
+        s["ff_raw"] = 0.6
+    e.state(raw)
+    _, out, _ = e.hook("prompt", A)
+    check("uncalibrated resting face is not frustration", out.strip() == "", out)
+    e.session(A, last_prompt_t=now - 60)
+    mixed = raw[:30] + samples(30, now, ff=0.6)  # calibration finishes halfway, then a real scowl
+    e.state(mixed)
+    _, out, _ = e.hook("prompt", A)
+    check("calibrated scowl still counts after uncalibrated seconds", "frustrated" in ctx(out), out)
+
+
+def test_streak_needs_consecutive_evidence():
+    now = time.time()
+    e = Env()
+    e.session(A, last_prompt_t=now - 60, frustrated=True, frust_turns=1)
+    e.focus((now - 1000, A))
+    e.state([])  # moodd just started: no evidence this turn
+    e.hook("prompt", A)
+    st = e.read(A)
+    check("a turn without data ends the frustrated streak", st.get("frust_turns") == 0 and not st.get("frustrated"),
+          str(st))
+    e.session(A, last_prompt_t=now - 3 * 86400, frustrated=True, frust_turns=1, rescue=True)
+    e.state(samples(120, now, ff=0.6))
+    _, out, _ = e.hook("prompt", A)
+    st = e.read(A)
+    check("a frustrated turn after a long break is not 'in a row'",
+          "frustrated" in ctx(out) and "second frustrated" not in ctx(out) and st.get("frust_turns") == 1
+          and not st.get("rescue"), f"{st} | {out[:200]}")
+    e.session(A, last_prompt_t=now - 60, frustrated=True, frust_turns=1)
+    _, out, _ = e.hook("prompt", A)
+    check("back-to-back frustrated turns still offer the rescue", "second frustrated" in ctx(out), out[:200])
+
+
 def wait_for(cond, timeout=8.0):
     end = time.time() + timeout
     while time.time() < end:

@@ -50,7 +50,6 @@ HISTORY_S = 900
 CALIB_S = 120             # seconds of face data used to calibrate the resting face / head pose
 DRIFT_S = 1800            # afterwards the baseline drifts with this time constant...
 DRIFT_STEP = 0.05, 2.0    # ...by at most this much per second-sample (frustration, pitch degrees)
-BASELINE_PRIOR = 0.15     # assumed resting-face frustration until calibrated
 
 FACE_MODEL_URL = ("https://github.com/HSE-asavchenko/face-emotion-recognition/raw/main/"
                   "models/affectnet_emotions/onnx/enet_b0_8_best_vgaf.onnx")
@@ -155,12 +154,13 @@ class Mood:
             screen = mean("look_down") < 0.35
             base = self.update_base("ff", ff, calm, 40)
             pbase = self.update_base("pitch", pitch, screen, 50)
-            base = BASELINE_PRIOR if base is None else base
             pbase = 0.0 if pbase is None else pbase
-            s.update(fj=round(mean("joy"), 3), ff_raw=round(ff, 3), ff=round(max(0.0, ff - base), 3),
+            s.update(fj=round(mean("joy"), 3), ff_raw=round(ff, 3),
                      pitch=round(pitch - pbase, 1), yaw=round(mean("yaw"), 1),
                      look_down=round(mean("look_down"), 2), eyes_closed=round(mean("eyes_closed"), 2),
                      top=max(set(f["top"] for f in seen), key=[f["top"] for f in seen].count))
+            if base is not None:  # uncalibrated, "frustration" is mostly the user's resting face
+                s["ff"] = round(max(0.0, ff - base), 3)
         self.samples.append(s)
         return s
 

@@ -29,6 +29,8 @@ def check(name, cond, detail):
 
 
 m = moodd.Mood()
+s = run(m, 10, frust=0.6)  # a resting face that the model reads as annoyed
+check("no face frustration reported before calibration", "ff" not in s and s["ff_raw"] > 0.5, s)
 s = run(m, 130)  # calibrate: neutral, looking at the screen, camera slightly above
 check("calibrated to the user's neutral", abs(s["pitch"]) < 1 and s["ff"] < 0.02, s)
 s = run(m, 150, pitch=-35.0, look_down=0.7)

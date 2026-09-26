@@ -416,7 +416,8 @@ def summarize(samples, t0, t1, sid=None, tl=None):
         eps = episodes(evs, pol)
         audio = 1 - math.exp(-K_AUDIO * sum(e["w"] for e in eps) / minutes)
         key, thr = ("ff", FACE_FRUST_THR) if pol == "frust" else ("fj", FACE_JOY_THR)
-        face = sum(s[key] > thr for s in seen) / len(seen) if len(seen) >= MIN_FACE_S else 0.0
+        pts = [s for s in seen if key in s]  # no "ff" until moodd has calibrated the resting face
+        face = sum(s[key] > thr for s in pts) / len(pts) if len(pts) >= MIN_FACE_S else 0.0
         out[pol] = round(1 - (1 - audio) * (1 - 0.8 * face), 3)
         out[f"{pol}_face"] = face
         out[f"{pol}_eps"] = eps
