@@ -76,7 +76,7 @@ Hooks can't change Claude Code's model or effort level. I checked this against t
 
 ## Privacy
 
-Frames, audio and transcripts never leave the daemon and are never written to disk. Derived scores and matched keywords (e.g. `said "wtf" x2`) *are* sent to Claude, and so to Anthropic, as context in the focused session.
+Frames, audio and transcripts never leave the daemon and are never written to disk. mediapipe is pinned to 0.10.21 or older because later PyPI builds include an undocumented usage logger that uploads to Google (clearcut, `play.googleapis.com`). Derived scores and matched keywords (e.g. `said "wtf" x2`) *are* sent to Claude, and so to Anthropic, as context in the focused session.
 
 ## Caveats
 
