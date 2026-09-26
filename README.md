@@ -40,3 +40,11 @@ claude --plugin-dir /path/to/claude-mood
 ## Privacy
 
 Frames, audio and transcripts never leave the daemon and are never written to disk. mediapipe is pinned to 0.10.21 or older because later PyPI builds include an undocumented usage logger that uploads to Google (clearcut, `play.googleapis.com`). Derived scores and matched keywords (e.g. `said "wtf" x2`) *are* sent to Claude, and so to Anthropic, as context in the focused session.
+
+## Built on
+
+- Face emotion: [HSEmotion](https://github.com/HSE-asavchenko/face-emotion-recognition) (Apache-2.0)
+- Face mesh, head pose and brows: [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) (Apache-2.0)
+- Laughs, groans and sighs: [AST fine-tuned on AudioSet](https://huggingface.co/MIT/ast-finetuned-audioset-10-10-0.4593) (BSD-3-Clause)
+- Tone of voice: [wav2vec2 SUPERB emotion recognition](https://huggingface.co/superb/wav2vec2-base-superb-er) (Apache-2.0)
+- Keywords: [faster-whisper base.en](https://huggingface.co/Systran/faster-whisper-base.en) (MIT)
