@@ -424,9 +424,11 @@ def test_focusd_follows_code():
     log = lambda: (e.dir / "hooks.log").read_text() if (e.dir / "hooks.log").exists() else ""
     try:
         wait_for(lambda: (e.dir / "focus.jsonl").exists())
+        with open(v1 / "moodlib.py", "a") as f:  # the restarted image must actually run the new code
+            f.write('\nif sys.argv[1:] == ["focusd"]:\n    log("focusd-new-code-loaded")\n')
         st = (v1 / "moodlib.py").stat()
         os.utime(v1 / "moodlib.py", ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
-        ok = wait_for(lambda: f"restarting from {v1}" in log()) and p.poll() is None
+        ok = wait_for(lambda: "focusd-new-code-loaded" in log()) and p.poll() is None
         check("focusd re-execs itself when its code changes", ok and str(v1) in args(), log() + args())
         (e.dir / "focusd.code").write_text(str(v2))
         check("focusd switches to a newer plugin dir", wait_for(lambda: str(v2) in args()), log() + args())
@@ -438,6 +440,10 @@ def test_focusd_follows_code():
             except OSError:
                 held = True
         check("restarted focusd still holds the singleton lock", held and p.poll() is None, log())
+        shutil.rmtree(v2)  # e.g. a plugin update deletes the version focusd runs from
+        time.sleep(2.5)
+        check("focusd survives removal of its own plugin dir", p.poll() is None and str(v2) in args(),
+              log() + args())
     finally:
         p.kill()
         p.wait()

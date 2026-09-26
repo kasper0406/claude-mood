@@ -305,7 +305,8 @@ def focusd():
             want = HOOKS_DIR
         if want != HOOKS_DIR and code_sig(want) is None:
             want = HOOKS_DIR  # e.g. an old plugin version that has since been removed
-        if want != HOOKS_DIR or code_sig(HOOKS_DIR) != sig:
+        cur = code_sig(HOOKS_DIR)  # None if our own dir was removed: keep running what we have
+        if want != HOOKS_DIR or (cur is not None and cur != sig):
             log(f"focusd: code changed, restarting from {want}")
             lockf.close()  # releases the flock; the new image takes it again
             os.execv(sys.executable, [sys.executable, str(want / "mood_hook.py"), "focusd"])
@@ -330,7 +331,9 @@ def focusd():
 
 def spawn_focusd():
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    FOCUSD_CODE.write_text(str(HOOKS_DIR))  # a running focusd switches to this code
+    tmp = FOCUSD_CODE.with_name(f"{FOCUSD_CODE.name}.{os.getpid()}")
+    tmp.write_text(str(HOOKS_DIR))
+    tmp.replace(FOCUSD_CODE)  # atomic, so focusd never reads a torn path; it switches to this code
     subprocess.Popen([sys.executable, str(HOOKS_DIR / "mood_hook.py"), "focusd"],
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
