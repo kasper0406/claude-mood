@@ -23,6 +23,7 @@ import moodlib as ml  # noqa: E402
 MODE = os.environ.get("CLAUDE_MOOD_MODE", "playful")   # playful | polite (no roasts)
 REACT = os.environ.get("CLAUDE_MOOD_REACT", "1") != "0"  # wake Claude when you scowl at its answer
 REACT_S = 60               # ...within this long after the turn ends
+REACT_FACE_S, REACT_FACE_THR = 2, 0.45  # a short but strong scowl (prompt notes use 0.3 over 8s+)
 JOKE_COOLDOWN_S = 600
 JOKES_OFF_S = 1800
 NUDGE_COOLDOWN_S = 120
@@ -175,6 +176,24 @@ def owned_now(st, sid, now, horizon=900):
     return ml.owned_samples(st["samples"], sid, ml.focus_timeline(now - horizon))
 
 
+def reaction(st, sid, t0, now):
+    """What the user did since t0 if it was a clear, even short, frustrated reaction: any outburst
+    (groan, sigh, "come on", swearing, angry tone) or a strong scowl held REACT_FACE_S. Else None."""
+    tl = ml.focus_timeline(t0)
+    parts = [" / ".join(dict.fromkeys(e["what"]))
+             for e in ml.episodes(ml.owned_events(st["samples"], t0, now, sid, tl), "frust")]
+    run = best = 0
+    prev = None
+    for x in sorted((x for x in ml.owned_samples(st["samples"], sid, tl) if t0 <= x["t"] <= now),
+                    key=lambda x: x["t"]):
+        run = run + 1 if x.get("ff", 0) >= REACT_FACE_THR and prev is not None and x["t"] - prev <= 1.5 \
+            else int(x.get("ff", 0) >= REACT_FACE_THR)
+        prev, best = x["t"], max(best, run)
+    if best >= REACT_FACE_S:
+        parts.append(f"scowling for {best}s")
+    return "; ".join(parts) or None
+
+
 def stop(p):
     """Sync Stop: mark the session idle, arm the idle watcher for this exact turn, maybe notify."""
     sid, now = p["session_id"], time.time()
@@ -240,11 +259,11 @@ def watch(p):
         reason = None
         phone = ml.trailing(smp, ml.on_phone, now)
         react = (REACT and now - start <= REACT_S and now - s.get("last_react_t", 0) >= NUDGE_COOLDOWN_S
-                 and ml.summarize(st["samples"], start, now, sid, ml.focus_timeline(start)))
-        if react and react["frust"] >= ml.ENTER:
+                 and reaction(st, sid, start, now))
+        if react:
             rescue = s.get("frust_turns", 0) + 1 >= 2
             reason = ("react", f"[claude-mood] The user read your answer and reacted with visible frustration "
-                      f"within {int(now - start)}s ({ml.describe(react, 'frust')}), without typing anything. "
+                      f"within {int(now - start)}s ({react}), without typing anything. "
                       "Re-read your last answer against exactly what they asked. If something is wrong, say so "
                       "and correct it in a few lines; if you're confident it's right, don't repeat it, ask one "
                       "short question about what they expected. Don't start new work."

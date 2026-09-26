@@ -213,6 +213,35 @@ def test_reaction_wake():
     check("CLAUDE_MOOD_REACT=0 disables the reaction wake", rc == "timeout", str(rc))
 
 
+def react_env(later):
+    """Calm until the turn ends, then `later` (40 future seconds of samples) as the reaction."""
+    e, now = Env(), time.time()
+    e.session(A, state="working", gen=5)
+    e.focus((now - 1000, A))
+    e.state(samples(60, now) + later(samples(40, now + 40)))
+    return e
+
+
+def test_short_reactions():
+    def scowl(n, ff):
+        def f(smp):
+            for x in smp[5:5 + n]:  # ~5s after the turn ends, while reading the answer
+                x["ff"] = ff
+            return smp
+        return f
+
+    def groan_at(smp):
+        groan(smp[5])
+        return smp
+
+    for name, later, want in [("a 2s strong scowl", scowl(2, 0.6), 2), ("a single groan", groan_at, 2),
+                              ("a 1s flinch", scowl(1, 0.6), "timeout"),
+                              ("a long mild frown (concentrating)", scowl(20, 0.35), "timeout")]:
+        e = react_env(later)
+        rc = watcher_outcome(e, lambda: time.sleep(12), wait_before=0, timeout=1)
+        check(f"reaction wake on {name}: {'wakes' if want == 2 else 'stays quiet'}", rc == want, str(rc))
+
+
 def test_watch_cancelled_by_prompt():
     e, now = Env(), time.time()
     e.session(A, state="working")
