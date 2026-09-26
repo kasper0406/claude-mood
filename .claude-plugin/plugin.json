@@ -1,6 +1,8 @@
 {
   "name": "claude-mood",
-  "version": "0.1.0",
-  "description": "Lets Claude notice when you laugh, groan, swear or scowl (local webcam + mic via moodd.py) and adjust.",
-  "author": { "name": "knielsen" }
+  "version": "0.3.0",
+  "description": "Lets Claude notice when you laugh, groan, swear or scowl (local webcam + mic via moodd.py) and adjust. macOS only.",
+  "author": { "name": "knielsen" },
+  "repository": "https://github.com/kasper0406/claude-mood",
+  "license": "MIT"
 }

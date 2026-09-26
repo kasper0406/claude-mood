@@ -1,6 +1,7 @@
 {
   "name": "claude-mood",
   "owner": { "name": "knielsen" },
+  "description": "Just-for-fun Claude Code plugin that reacts to your face and voice (macOS)",
   "plugins": [
     { "name": "claude-mood", "source": "./", "description": "Webcam/mic mood sensing for Claude Code" }
   ]

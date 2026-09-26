@@ -1,5 +1,7 @@
 # claude-mood
 
+> **Just for fun.** This is a prototype made for the lolz, with no intention behind it beyond that. No roadmap, no support, macOS only.
+
 Claude Code notices when you laugh, groan, swear, scowl, doomscroll or wander off, and it reacts.
 Only the Claude session you're currently looking at is affected.
 
@@ -21,7 +23,24 @@ hooks (per session, focus-attributed)
                     back after 5+ min away → wakes Claude for a one-line welcome-back recap
 ```
 
-## Run
+## Try it
+
+Needs macOS, [uv](https://docs.astral.sh/uv/) and a working `python3` for the hooks (on a fresh Mac, run `xcode-select --install` first).
+
+```sh
+# 1. In a terminal: start the sensor. Allow camera + mic; the first run downloads ~1.5 GB of models
+uv run https://raw.githubusercontent.com/kasper0406/claude-mood/main/moodd.py
+```
+
+```
+# 2. In Claude Code: install the plugin
+/plugin marketplace add kasper0406/claude-mood
+/plugin install claude-mood@claude-mood
+```
+
+Use iTerm2, Terminal.app or tmux so the plugin can tell which session you're looking at; elsewhere, run `/claude-mood:here` in the session you want. Ctrl-C stops the sensor, `/plugin uninstall claude-mood@claude-mood` removes the plugin. See [Privacy](#privacy) for what gets sent to Claude.
+
+## Run from a clone
 
 ```sh
 uv run moodd.py            # webcam 0 + default mic. First run downloads roughly 1.5 GB of models
@@ -45,9 +64,8 @@ It shows something like `😤 ⛈ joy 0.05 · frust 0.71 · swear jar 4`, or �
 Only the session in focus gets notes. Each reaction is attributed to whichever session was focused at that second, so frowning at session A never shows up in session B. A small per-machine `focusd` (started automatically) resolves focus once a second:
 
 - **tmux** (also works over SSH): the pane shown in a tmux client whose terminal has focus. This needs `set -g focus-events on` in `~/.tmux.conf`.
-- **macOS iTerm2 / Terminal.app**: the frontmost app's selected tab, matched by its tty (osascript). Grant Automation permission when asked.
-- **X11**: the active window's process must be an ancestor of the Claude process. This works if each terminal window is its own process, but not with a shared terminal server.
-- **Anything else** (VS Code, Wayland, etc.): focus can't be determined, so the plugin stays silent. Run `/claude-mood:here` in the session you want to target (`/claude-mood:here off` to unpin).
+- **iTerm2 / Terminal.app**: the frontmost app's selected tab, matched by its tty (osascript). Grant Automation permission when asked.
+- **Anything else** (Ghostty, Warp, VS Code, etc.): focus can't be determined, so the plugin stays silent. Run `/claude-mood:here` in the session you want to target (`/claude-mood:here off` to unpin).
 
 ## Claude Code on another machine
 
