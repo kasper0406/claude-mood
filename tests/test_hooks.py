@@ -18,6 +18,7 @@ class Env:
         self.env = dict(os.environ, CLAUDE_MOOD_DIR=str(self.dir))
         self.env.pop("CLAUDE_MOOD_URL", None)
         self.env["CLAUDE_CODE_ENTRYPOINT"] = "cli"
+        self.extra = {}  # extra hook payload fields, e.g. transcript_path
 
     def state(self, samples, **kw):
         # "updated" follows the newest sample so a pre-written future timeline stays fresh
@@ -46,7 +47,8 @@ class Env:
     def hook(self, cmd, sid, wait=True, prompt_id="p1"):
         p = subprocess.Popen([sys.executable, str(HOOK), cmd], env=self.env, stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        p.stdin.write(json.dumps({"session_id": sid, "hook_event_name": cmd, "prompt_id": prompt_id}))
+        p.stdin.write(json.dumps({"session_id": sid, "hook_event_name": cmd, "prompt_id": prompt_id,
+                                  **self.extra}))
         p.stdin.close()
         if not wait:
             return p
@@ -220,6 +222,31 @@ def react_env(later):
     e.focus((now - 1000, A))
     e.state(samples(60, now) + later(samples(40, now + 40)))
     return e
+
+
+def test_transcript_bookkeeping_vs_activity():
+    """Claude Code appends ai-title/cost-state/... after a turn; only real messages cancel the watcher."""
+    def groan_later(smp):
+        groan(smp[8])  # ~9s after the turn ends
+        return smp
+
+    for name, lines, want in [
+            ("bookkeeping after the turn doesn't cancel the reaction wake",
+             '{"type": "ai-title", "aiTitle": "x"}\n{"type": "cost-state"}\n{"type": "last-prompt"}\n', 2),
+            ("a new user message does cancel it", '{"type": "user", "message": {"content": "hi"}}\n', 0)]:
+        e = react_env(groan_later)
+        tr = e.dir / "transcript.jsonl"
+        tr.write_text('{"type": "user"}\n{"type": "assistant"}\n')
+        e.extra["transcript_path"] = str(tr)
+
+        def act(lines=lines, tr=tr):
+            time.sleep(3)  # after the watcher's snapshot
+            with open(tr, "a") as f:
+                f.write(lines)
+            time.sleep(9)
+        rc = watcher_outcome(e, act, wait_before=0, timeout=3)
+        log = (e.dir / "hooks.log").read_text() if (e.dir / "hooks.log").exists() else ""
+        check(name, rc == want and (want == 2 or "conversation moved" in log), f"{rc} {log[-200:]}")
 
 
 def test_short_reactions():

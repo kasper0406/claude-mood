@@ -179,7 +179,7 @@ def owned_now(st, sid, now, horizon=900):
 def reaction(st, sid, t0, now):
     """What the user did since t0 if it was a clear, even short, frustrated reaction: any outburst
     (groan, sigh, "come on", swearing, angry tone) or a strong scowl held REACT_FACE_S. Else None."""
-    tl = ml.focus_timeline(t0)
+    tl = ml.focus_timeline(t0 - 30)  # enough history to own an outburst that began before t0
     parts = [" / ".join(dict.fromkeys(e["what"]))
              for e in ml.episodes(ml.owned_events(st["samples"], t0, now, sid, tl), "frust")]
     run = best = 0
@@ -201,7 +201,7 @@ def stop(p):
         wake_turn = s.get("wake_gen") == s.get("gen")  # this Stop ends a turn we woke up
         s["gen"] = s.get("gen", 0) + 1
         s["state"] = "idle"
-        s["armed"] = None if wake_turn else {"prompt": p.get("prompt_id"), "gen": s["gen"]}
+        s["armed"] = None if wake_turn else {"prompt": p.get("prompt_id"), "gen": s["gen"], "t": now}
         st = ml.load_state()
         notify = (not wake_turn and st and not st.get("paused") and ml.current_focus() == sid
                   and now - s.get("last_notify_t", 0) >= JOKE_COOLDOWN_S
@@ -217,6 +217,24 @@ def transcript_size(p):
         return os.path.getsize(p.get("transcript_path") or "")
     except OSError:
         return None
+
+
+def conversation_moved(p, offset):
+    """True if a user/assistant message was appended after `offset`. Claude Code also appends
+    bookkeeping (ai-title, cost-state, last-prompt...) after a turn; those don't count."""
+    try:
+        with open(p.get("transcript_path") or "", "rb") as f:
+            f.seek(offset or 0)
+            new = f.read()
+    except OSError:
+        return False
+    for line in new.splitlines():
+        try:
+            if json.loads(line).get("type") in ("user", "assistant"):
+                return True
+        except ValueError:
+            continue  # a line still being written
+    return False
 
 
 def watch(p):
@@ -235,17 +253,32 @@ def watch(p):
         a = s.get("armed") or {}
         if a and a.get("prompt") == p.get("prompt_id") and a.get("gen") == s.get("gen") \
                 and s.get("state") == "idle":
-            my_gen = a["gen"]
+            my_gen, ended = a["gen"], a.get("t") or time.time()  # reactions count from the turn's end
             break
         if time.time() > deadline:
+            ml.log(f"watch {sid[:8]}: never armed (armed={a}, gen={s.get('gen')}, state={s.get('state')})")
             return 0
         time.sleep(0.2)
     time.sleep(2)  # let Claude finish writing the turn to the transcript
     size0, start, was_away = transcript_size(p), time.time(), False
 
+    def lost(s, st):
+        """Why this watcher should stand down, or None if the idle turn is still ours."""
+        if s.get("gen") != my_gen or s.get("state") != "idle":
+            return "new turn"
+        if conversation_moved(p, size0):
+            return "conversation moved"
+        if st is None or st.get("paused"):
+            return "sensor paused/off"
+        if ml.current_focus() != sid:
+            return "focus lost"
+        return None
+
     def still_mine(s, st):
-        return (s.get("gen") == my_gen and s.get("state") == "idle" and transcript_size(p) == size0
-                and st is not None and not st.get("paused") and ml.current_focus() == sid)
+        why = lost(s, st)
+        if why:
+            ml.log(f"watch {sid[:8]}: standing down ({why})")
+        return why is None
 
     while time.time() - start < WATCH_S:
         time.sleep(2)
@@ -258,12 +291,12 @@ def watch(p):
         smp = owned_now(st, sid, now)
         reason = None
         phone = ml.trailing(smp, ml.on_phone, now)
-        react = (REACT and now - start <= REACT_S and now - s.get("last_react_t", 0) >= NUDGE_COOLDOWN_S
-                 and reaction(st, sid, start, now))
+        react = (REACT and now - ended <= REACT_S and now - s.get("last_react_t", 0) >= NUDGE_COOLDOWN_S
+                 and reaction(st, sid, ended, now))
         if react:
             rescue = s.get("frust_turns", 0) + 1 >= 2
             reason = ("react", f"[claude-mood] The user read your answer and reacted with visible frustration "
-                      f"within {int(now - start)}s ({react}), without typing anything. "
+                      f"within {int(now - ended)}s ({react}), without typing anything. "
                       "Re-read your last answer against exactly what they asked. If something is wrong, say so "
                       "and correct it in a few lines; if you're confident it's right, don't repeat it, ask one "
                       "short question about what they expected. Don't start new work."
